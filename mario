@@ -1,0 +1,165 @@
+function dado() {
+  return Math.floor(Math.random() * 10) + 1;
+}
+
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sorteio(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function criarJogador(nome, vel, man, pod) {
+  return {
+    nome: nome,
+    vel: vel,
+    man: man,
+    pod: pod,
+    pontos: 0,
+  };
+}
+
+const jogadores = [
+  criarJogador("Mario", 4, 3, 3),
+  criarJogador("Luigi", 3, 4, 4),
+  criarJogador("Goomba", dado(), dado(), dado()),
+  criarJogador("Sonic", dado(), dado(), dado()),
+  criarJogador("Wario", 3, 2, 5),
+  criarJogador("Waluigi", 2, 5, 2),
+];
+
+function gerarFase() {
+  const tipos = ["RETA", "CURVA", "CONFRONTO", "SUBIDA", "DESCIDA", "BURACO"];
+
+  if (Math.random() < 0.5) {
+    return [sorteio(tipos), sorteio(tipos)];
+  }
+
+  return [sorteio(tipos)];
+}
+
+function aplicarEfeito(jogador, tipo) {
+  let roll = dado();
+
+  if (tipo === "SUBIDA" && roll < 5) jogador.vel--;
+  if (tipo === "BURACO" && roll < 5) jogador.man--;
+
+  if (tipo === "DESCIDA" && roll >= 5) {
+    jogador.vel++;
+    jogador.pod++;
+    jogador.man--;
+  }
+}
+
+async function jogarRodada(num) {
+  console.log(`\n -----------Rodada----------- ${num}`);
+
+  const fases = gerarFase();
+  console.log("Fase:", fases.join(" + "));
+
+  let resultados = [];
+
+  for (let j of jogadores) {
+    let delay = 2000; // padrão
+
+    if (j.nome === "Goomba") console.log("goomba esta demorando")
+         delay = 3000;
+    if (j.nome === "Sonic") delay = 1000;   // rápido
+
+    await esperar(delay);
+
+    let roll = dado();
+
+    if (j.nome === "Goomba") roll = Math.max(1, roll - 2);
+    if (j.nome === "Sonic") roll += 1;
+
+
+    if (j.nome === "Wario") {
+      let alvo = sorteio(jogadores.filter(p => p.nome !== "Wario"));
+      alvo.pontos = Math.max(0, alvo.pontos - 1);
+
+      console.log(`Wario sabotou ${alvo.nome}! (-1 ponto)`);
+
+      resultados.push({ nome: j.nome, total: 0, ref: j });
+      continue;
+    }
+
+    if (j.nome === "Waluigi") {
+      let alvo = jogadores
+        .filter(p => p.nome !== "Waluigi")
+        .sort((a, b) => b.pontos - a.pontos)[0];
+
+      let dano = Math.random() < 0.5 ? 1 : 2;
+
+      alvo.pontos = Math.max(0, alvo.pontos - dano);
+
+      console.log(`Waluigi sabotou ${alvo.nome}! (-${dano} pontos)`);
+
+      resultados.push({ nome: j.nome, total: 0, ref: j });
+      continue;
+    }
+
+    fases.forEach((f) => aplicarEfeito(j, f));
+
+    let total = roll;
+
+    fases.forEach((f) => {
+      if (f === "RETA") total += j.vel;
+      if (f === "CURVA") total += j.man;
+      if (f === "CONFRONTO") total += j.pod;
+    });
+
+    console.log(`${j.nome} tirou ${roll} e fez ${total}`);
+
+    resultados.push({ nome: j.nome, total: total, ref: j });
+  }
+
+  resultados.sort((a, b) => b.total - a.total);
+
+  console.log("\nRanking da rodada:");
+
+  let pontosRodada = [4, 3, 2, 1];
+
+  resultados.forEach((r, i) => {
+    console.log(`${i + 1}º - ${r.nome}`);
+
+    if (r.nome !== "Wario" && r.nome !== "Waluigi") {
+      r.ref.pontos += pontosRodada[i] || 0;
+    }
+  });
+
+  if (fases.includes("CONFRONTO")) {
+    let ultimo = resultados[resultados.length - 1].ref;
+    ultimo.pontos = Math.max(0, ultimo.pontos - 1);
+    console.log(`${ultimo.nome} perdeu ponto no confronto!`);
+  }
+}
+
+function mostrarResultado() {
+  console.log("\n -----------RESULTADO FINAL-----------");
+
+  jogadores.sort((a, b) => b.pontos - a.pontos);
+
+  jogadores.forEach((j, i) => {
+    console.log(`${i + 1}º - ${j.nome} (${j.pontos} pts)`);
+  });
+
+  let vencedor = jogadores[0];
+
+  console.log(`\n🏆 ${vencedor.nome} venceu!`);
+
+  console.log(
+    `✨ "${vencedor.nome} mostrou que não é apenas sobre velocidade... é sobre coragem, estratégia e nunca desistir \n até cruzar a linha de chegada!" ✨`
+  );
+}
+
+(async function () {
+  console.log("Corrida estilo simples");
+
+  for (let i = 1; i <= 5; i++) {
+    await jogarRodada(i);
+  }
+
+  mostrarResultado();
+})();
